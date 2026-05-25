@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Summit Technology — License Utilization Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --navy:       #0f1f3d;
+    --navy-mid:   #162545;
+    --navy-light: #1e3260;
+    --accent:     #1e90ff;
+    --teal:       #00c2cb;
+    --green:      #22c55e;
+    --amber:      #f59e0b;
+    --red:        #ef4444;
+    --purple:     #8b5cf6;
+    --text:       #e8edf5;
+    --text-muted: #8a9bbf;
+    --card-bg:    #162545;
+    --border:     #2a3f6a;
+    --input-bg:   #0d1b35;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--navy); color: var(--text); min-height: 100vh; }
+
+  /* TOPBAR */
+  .topbar {
+    background: var(--navy-mid); border-bottom: 1px solid var(--border);
+    padding: 0 2rem; height: 64px; display: flex; align-items: center;
+    justify-content: space-between; position: sticky; top: 0; z-index: 100;
+  }
+  .brand { display: flex; align-items: center; gap: .75rem; }
+  .brand-icon {
+    width: 38px; height: 38px; background: linear-gradient(135deg, var(--accent), var(--teal));
+    border-radius: 10px; display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem; font-weight: 800; color: #fff;
+  }
+  .brand-name { font-size: .95rem; font-weight: 700; }
+  .brand-sub  { font-size: .72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
+  .topbar-right { display: flex; align-items: center; gap: 1rem; }
+  .last-updated { font-size: .78rem; color: var(--text-muted); }
+  .export-btn {
+    background: linear-gradient(135deg, var(--accent), #1478d8);
+    border: none; border-radius: 8px; padding: .45rem 1rem;
+    color: #fff; font-size: .82rem; font-weight: 600; cursor: pointer;
+    display: flex; align-items: center; gap: .4rem; transition: filter .2s;
+  }
+  .export-btn:hover { filter: brightness(1.1); }
+
+  /* HERO */
+  .hero {
+    background: linear-gradient(135deg, var(--navy-mid) 0%, #0d2050 60%, #0a1a40 100%);
+    padding: 2rem 2rem 1.5rem; border-bottom: 1px solid var(--border);
+    position: relative; overflow: hidden;
+  }
+  .hero::before {
+    content: ''; position: absolute; top: -80px; right: -80px;
+    width: 360px; height: 360px;
+    background: radial-gradient(circle, rgba(30,144,255,.1) 0%, transparent 70%);
+    border-radius: 50%; pointer-events: none;
+  }
+  .hero h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: .3rem; }
+  .hero h1 span { color: var(--accent); }
+  .hero p { color: var(--text-muted); font-size: .88rem; }
+  .hero-meta { display: flex; gap: 1.5rem; margin-top: 1rem; flex-wrap: wrap; }
+  .hero-chip {
+    background: var(--navy-light); border: 1px solid var(--border);
+    border-radius: 20px; padding: .3rem .85rem; font-size: .78rem;
+    display: flex; align-items: center; gap: .4rem;
+  }
+  .chip-dot { width: 7px; height: 7px; border-radius: 50%; }
+
+  /* KPI CARDS */
+  .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; padding: 1.5rem 2rem 0; }
+  .kpi-card {
+    background: var(--card-bg); border: 1px solid var(--border); border-radius: 14px;
+    padding: 1.25rem; position: relative; overflow: hidden;
+  }
+  .kpi-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  }
+  .kpi-card.blue::before  { background: linear-gradient(90deg, var(--accent), var(--teal)); }
+  .kpi-card.green::before { background: linear-gradient(90deg, var(--green), #16a34a); }
+  .kpi-card.amber::before { background: linear-gradient(90deg, var(--amber), #d97706); }
+  .kpi-card.red::before   { background: linear-gradient(90deg, var(--red), #dc2626); }
+  .kpi-label { font-size: .75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; font-weight: 600; margin-bottom: .5rem; }
+  .kpi-value { font-size: 1.9rem; font-weight: 800; line-height: 1; margin-bottom: .35rem; }
+  .kpi-value.green { color: var(--green); }
+  .kpi-value.amber { color: var(--amber); }
+  .kpi-value.red   { color: var(--red); }
+  .kpi-value.blue  { color: var(--accent); }
+  .kpi-sub { font-size: .77rem; color: var(--text-muted); }
+  .kpi-sub strong { color: var(--text); }
+  .kpi-icon { position: absolute; top: 1.25rem; right: 1.25rem; font-size: 1.5rem; opacity: .4; }
+  .kpi-trend { display: inline-flex; align-items: center; gap: .25rem; font-size: .72rem; margin-top: .4rem; padding: 2px 7px; border-radius: 10px; font-weight: 600; }
+  .trend-bad  { background: rgba(239,68,68,.15); color: var(--red); }
+  .trend-good { background: rgba(34,197,94,.15); color: var(--green); }
+
+  /* MAIN LAYOUT */
+  .main { padding: 1.5rem 2rem 3rem; display: flex; flex-direction: column; gap: 1.5rem; }
+
+  /* CHARTS ROW */
+  .charts-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+  .chart-card {
+    background: var(--card-bg); border: 1px solid var(--border); border-radius: 14px; padding: 1.25rem;
+  }
+  .chart-title { font-size: .88rem; font-weight: 700; margin-bottom: 1rem; display: flex; align-items: center; gap: .5rem; }
+  .chart-wrap { position: relative; height: 200px; }
+
+  /* SAVINGS PANEL */
+  .savings-panel {
+    background: var(--card-bg); border: 1px solid var(--border); border-radius: 14px; padding: 1.25rem;
+  }
+  .panel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+  .panel-title { font-size: .95rem; font-weight: 700; display: flex; align-items: center; gap: .5rem; }
+  .savings-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: .75rem; }
+  .saving-item {
+    background: var(--navy); border: 1px solid var(--border); border-radius: 10px;
+    padding: 1rem; display: flex; gap: .85rem; align-items: flex-start;
+    transition: border-color .2s;
+  }
+  .saving-item:hover { border-color: var(--amber); }
+  .saving-icon { font-size: 1.4rem; flex-shrink: 0; }
+  .saving-info { flex: 1; }
+  .saving-title { font-size: .85rem; font-weight: 700; margin-bottom: .2rem; }
+  .saving-desc { font-size: .75rem; color: var(--text-muted); line-height: 1.4; margin-bottom: .4rem; }
+  .saving-amount {
+    font-size: .8rem; font-weight: 700; color: var(--green);
+    background: rgba(34,197,94,.12); border-radius: 6px; padding: 2px 8px; display: inline-block;
+  }
+  .saving-urgency {
+    font-size: .68rem; font-weight: 600; padding: 2px 7px; border-radius: 10px; margin-left: .4rem;
+  }
+  .urg-high   { background: rgba(239,68,68,.15); color: var(--red); }
+  .urg-medium { background: rgba(245,158,11,.15); color: var(--amber); }
+  .urg-low    { background: rgba(30,144,255,.15); color: var(--accent); }
+
+  /* TABLE SECTION */
+  .table-section { background: var(--card-bg); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+  .table-toolbar {
+    padding: 1rem 1.25rem; display: flex; align-items: center; gap: .75rem;
+    border-bottom: 1px solid var(--border); flex-wrap: wrap;
+  }
+  .table-title-block { flex: 1; }
+  .table-title { font-size: .95rem; font-weight: 700; }
+  .table-sub   { font-size: .75rem; color: var(--text-muted); }
+  .filter-tabs { display: flex; gap: .4rem; flex-wrap: wrap; }
+  .ftab {
+    padding: .35rem .85rem; border-radius: 20px; border: 1px solid var(--border);
+    font-size: .78rem; font-weight: 600; cursor: pointer; background: none; color: var(--text-muted);
+    transition: all .15s;
+  }
+  .ftab:hover { border-color: var(--accent); color: var(--accent); }
+  .ftab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .search-box {
+    background: var(--input-bg); border: 1px solid var(--border); border-radius: 8px;
+    padding: .4rem .85rem; color: var(--text); font-size: .82rem; outline: none; width: 180px;
+    transition: border-color .2s;
+  }
+  .search-box:focus { border-color: var(--accent); }
+  .search-box::placeholder { color: var(--text-muted); }
+  .sort-select {
+    background: var(--input-bg); border: 1px solid var(--border); border-radius: 8px;
+    padding: .4rem .75rem; color: var(--text); font-size: .78rem; outline: none; cursor: pointer;
+  }
+  .sort-select option { background: var(--navy); }
+
+  /* TABLE */
+  .tbl-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+  thead th {
+    background: var(--navy); padding: .75rem 1rem; text-align: left;
+    font-size: .72rem; text-transform: uppercase; letter-spacing: .05em;
+    color: var(--text-muted); font-weight: 700; white-space: nowrap;
+    cursor: pointer; user-select: none; border-bottom: 1px solid var(--border);
+    transition: color .15s;
+  }
+  thead th:hover { color: var(--accent); }
+  thead th .sort-arrow { opacity: .4; margin-left: .3rem; }
+  thead th.sorted .sort-arrow { opacity: 1; color: var(--accent); }
+  tbody tr { border-bottom: 1px solid rgba(42,63,106,.5); transition: background .15s; }
+  tbody tr:hover { background: rgba(30,144,255,.05); }
+  tbody tr:last-child { border-bottom: none; }
+  td { padding: .7rem 1rem; vertical-align: middle; }
+  .td-software { display: flex; align-items: center; gap: .65rem; }
+  .sw-icon { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: .9rem; flex-shrink: 0; }
+  .sw-name  { font-weight: 600; font-size: .83rem; }
+  .sw-vendor { font-size: .72rem; color: var(--text-muted); }
+  .cat-badge {
+    font-size: .68rem; padding: 2px 8px; border-radius: 10px; font-weight: 600; white-space: nowrap;
+  }
+  .cat-m365   { background: rgba(30,144,255,.15); color: var(--accent); }
+  .cat-sec    { background: rgba(239,68,68,.15); color: #f87171; }
+  .cat-prod   { background: rgba(139,92,246,.15); color: #a78bfa; }
+  .cat-dev    { background: rgba(34,197,94,.15); color: var(--green); }
+
+  /* Utilization bar */
+  .util-wrap { display: flex; align-items: center; gap: .6rem; min-width: 120px; }
+  .util-bar-bg { flex: 1; height: 6px; background: rgba(255,255,255,.08); border-radius: 3px; overflow: hidden; }
+  .util-bar-fill { height: 100%; border-radius: 3px; transition: width .5s ease; }
+  .util-pct { font-size: .78rem; font-weight: 700; min-width: 34px; text-align: right; }
+  .status-pill {
+    font-size: .7rem; padding: 3px 9px; border-radius: 10px; font-weight: 700; white-space: nowrap;
+  }
+  .status-healthy  { background: rgba(34,197,94,.15); color: var(--green); }
+  .status-review   { background: rgba(245,158,11,.15); color: var(--amber); }
+  .status-critical { background: rgba(239,68,68,.15); color: var(--red); }
+  .waste-cell { font-weight: 700; }
+  .waste-high   { color: var(--red); }
+  .waste-medium { color: var(--amber); }
+  .waste-low    { color: var(--text-muted); }
+  .action-btn {
+    font-size: .72rem; padding: 3px 10px; border-radius: 6px; border: 1px solid var(--border);
+    background: none; color: var(--text-muted); cursor: pointer; transition: all .15s; white-space: nowrap;
+  }
+  .action-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .action-btn.reclaim { border-color: rgba(34,197,94,.4); color: var(--green); }
+  .action-btn.reclaim:hover { background: rgba(34,197,94,.1); }
+  .action-btn.review { border-color: rgba(245,158,11,.4); color: var(--amber); }
+  .action-btn.review:hover { background: rgba(245,158,11,.1); }
+
+  /* TABLE FOOTER */
+  .table-footer {
+    padding: .75rem 1.25rem; border-top: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: .78rem; color: var(--text-muted); flex-wrap: wrap; gap: .5rem;
+  }
+  .footer-total { font-weight: 700; color: var(--text); }
+
+  /* TOAST */
+  .toast-container { position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 1000; display: flex; flex-direction: column; gap: .5rem; }
+  .toast {
+    background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px;
+    padding: .75rem 1rem; font-size: .82rem; display: flex; align-items: center; gap: .6rem;
+    min-width: 260px; box-shadow: 0 8px 24px rgba(0,0,0,.4);
+    animation: slideIn .3s ease; border-left: 3px solid var(--green);
+  }
+  @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+  @keyframes fadeOut { to   { transform: translateX(100%); opacity: 0; } }
+  .toast-title { font-weight: 700; color: var(--text); font-size: .82rem; }
+  .toast-body  { color: var(--text-muted); font-size: .75rem; }
+
+  /* MODAL */
+  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.65); backdrop-filter: blur(4px); z-index: 500; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity .2s; }
+  .overlay.open { opacity: 1; pointer-events: all; }
+  .modal { background: #0f1f3d; border: 1px solid var(--border); border-radius: 16px; width: 100%; max-width: 520px; padding: 1.75rem; transform: scale(.95) translateY(12px); transition: transform .25s cubic-bezier(.34,1.56,.64,1); max-height: 90vh; overflow-y: auto; }
+  .overlay.open .modal { transform: scale(1) translateY(0); }
+  .modal-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.25rem; }
+  .modal-title { font-size: 1.1rem; font-weight: 700; }
+  .modal-sub   { font-size: .8rem; color: var(--text-muted); margin-top: .2rem; }
+  .modal-close { background: none; border: 1px solid var(--border); border-radius: 8px; width: 32px; height: 32px; color: var(--text-muted); cursor: pointer; font-size: 1rem; display: flex; align-items: center; justify-content: center; transition: all .15s; }
+  .modal-close:hover { background: var(--navy-light); color: var(--text); }
+  .detail-row { display: flex; justify-content: space-between; padding: .6rem 0; border-bottom: 1px solid rgba(42,63,106,.5); font-size: .85rem; }
+  .detail-row:last-child { border-bottom: none; }
+  .detail-label { color: var(--text-muted); }
+  .detail-value { font-weight: 600; }
+  .rec-box { background: rgba(245,158,11,.08); border: 1px solid rgba(245,158,11,.25); border-radius: 10px; padding: .9rem 1rem; margin-top: 1rem; font-size: .83rem; color: var(--text-muted); line-height: 1.55; }
+  .rec-box strong { color: var(--amber); }
+  .modal-actions { display: flex; gap: .65rem; margin-top: 1.25rem; }
+  .mbtn { flex: 1; padding: .6rem; border-radius: 8px; font-size: .85rem; font-weight: 600; cursor: pointer; border: none; font-family: inherit; transition: all .15s; }
+  .mbtn-primary { background: linear-gradient(135deg, var(--accent), #1478d8); color: #fff; }
+  .mbtn-primary:hover { filter: brightness(1.1); }
+  .mbtn-sec { background: var(--navy-light); color: var(--text); border: 1px solid var(--border); }
+  .mbtn-sec:hover { border-color: var(--accent); }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  @media (max-width: 900px) {
+    .kpi-row { grid-template-columns: repeat(2, 1fr); }
+    .charts-row { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 600px) {
+    .kpi-row { grid-template-columns: 1fr; }
+    .topbar, .hero, .main { padding-left: 1rem; padding-right: 1rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-icon">ST</div>
+    <div>
+      <div class="brand-name">Summit Technology</div>
+      <div class="brand-sub">License Utilization Dashboard</div>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <span class="last-updated">📅 Data as of May 2026 · 23 licenses tracked</span>
+    <button class="export-btn" onclick="exportCSV()">⬇ Export CSV</button>
+  </div>
+</header>
+
+<!-- HERO -->
+<section class="hero">
+  <h1>Software License <span>Utilization Report</span></h1>
+  <p>Identify unused seats, optimise spend, and surface savings opportunities across all Summit Technology software.</p>
+  <div class="hero-meta">
+    <div class="hero-chip"><div class="chip-dot" style="background:var(--red)"></div>6 Critical (&lt;60% used)</div>
+    <div class="hero-chip"><div class="chip-dot" style="background:var(--amber)"></div>8 Review (60–80% used)</div>
+    <div class="hero-chip"><div class="chip-dot" style="background:var(--green)"></div>9 Healthy (&gt;80% used)</div>
+    <div class="hero-chip">💰 ~25% of spend recoverable</div>
+  </div>
+</section>
+
+<!-- KPI CARDS -->
+<div class="kpi-row">
+  <div class="kpi-card blue">
+    <div class="kpi-icon">💰</div>
+    <div class="kpi-label">Total Annual Spend</div>
+    <div class="kpi-value blue">$307K</div>
+    <div class="kpi-sub">Across <strong>23 products</strong> · 1,483 total seats</div>
+    <div class="kpi-trend trend-bad">↑ 12% vs last year</div>
+  </div>
+  <div class="kpi-card green">
+    <div class="kpi-icon">✂️</div>
+    <div class="kpi-label">Potential Annual Savings</div>
+    <div class="kpi-value green">$77K</div>
+    <div class="kpi-sub"><strong>357 unused seats</strong> identified</div>
+    <div class="kpi-trend trend-good">↓ Recoverable now</div>
+  </div>
+  <div class="kpi-card amber">
+    <div class="kpi-icon">🪑</div>
+    <div class="kpi-label">Unused Licenses</div>
+    <div class="kpi-value amber">357</div>
+    <div class="kpi-sub">Of <strong>1,483</strong> total seats purchased</div>
+    <div class="kpi-trend trend-bad">24% waste rate</div>
+  </div>
+  <div class="kpi-card red">
+    <div class="kpi-icon">📊</div>
+    <div class="kpi-label">Avg Utilization</div>
+    <div class="kpi-value red">76%</div>
+    <div class="kpi-sub">Target: <strong>≥85%</strong> utilization</div>
+    <div class="kpi-trend trend-bad">↓ 9 pts below target</div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- CHARTS -->
+  <div class="charts-row">
+    <div class="chart-card">
+      <div class="chart-title">📊 Utilization by Category</div>
+      <div class="chart-wrap"><canvas id="chartUtil"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">💸 Annual Spend by Category</div>
+      <div class="chart-wrap"><canvas id="chartSpend"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">🔴 Top Waste Offenders (Monthly $)</div>
+      <div class="chart-wrap"><canvas id="chartWaste"></canvas></div>
+    </div>
+  </div>
+
+  <!-- SAVINGS RECOMMENDATIONS -->
+  <div class="savings-panel">
+    <div class="panel-header">
+      <div class="panel-title">💡 Top Cost Saving Opportunities</div>
+      <span style="font-size:.78rem;color:var(--text-muted)">Sorted by annual savings potential</span>
+    </div>
+    <div class="savings-grid" id="savingsGrid"></div>
+  </div>
+
+  <!-- LICENSE TABLE -->
+  <div class="table-section">
+    <div class="table-toolbar">
+      <div class="table-title-block">
+        <div class="table-title">📋 Full License Inventory</div>
+        <div class="table-sub" id="tableCount">Showing all 23 licenses</div>
+      </div>
+      <div class="filter-tabs">
+        <button class="ftab active" onclick="filterTable('all',this)">All</button>
+        <button class="ftab" onclick="filterTable('m365',this)">M365</button>
+        <button class="ftab" onclick="filterTable('security',this)">Security</button>
+        <button class="ftab" onclick="filterTable('productivity',this)">Productivity</button>
+        <button class="ftab" onclick="filterTable('developer',this)">Developer</button>
+        <button class="ftab" onclick="filterTable('critical',this)">🔴 Critical</button>
+      </div>
+      <input class="search-box" type="text" placeholder="🔍 Search…" oninput="searchTable(this.value)" />
+      <select class="sort-select" onchange="sortTable(this.value)">
+        <option value="">Sort by…</option>
+        <option value="waste-desc">Highest Waste $</option>
+        <option value="util-asc">Lowest Utilization</option>
+        <option value="spend-desc">Highest Spend</option>
+        <option value="unused-desc">Most Unused Seats</option>
+      </select>
+    </div>
+    <div class="tbl-wrap">
+      <table id="licenseTable">
+        <thead>
+          <tr>
+            <th onclick="sortCol('name')">Software <span class="sort-arrow">↕</span></th>
+            <th onclick="sortCol('category')">Category <span class="sort-arrow">↕</span></th>
+            <th onclick="sortCol('licensed')">Licensed <span class="sort-arrow">↕</span></th>
+            <th onclick="sortCol('active')">Active <span class="sort-arrow">↕</span></th>
+            <th onclick="sortCol('unused')">Unused <span class="sort-arrow">↕</span></th>
+            <th onclick="sortCol('util')">Utilization <span class="sort-arrow">↕</span></th>
+            <th onclick="sortCol('annual')">Annual Cost <span class="sort-arrow">↕</span></th>
+            <th onclick="sortCol('waste')">Monthly Waste <span class="sort-arrow">↕</span></th>
+            <th onclick="sortCol('status')">Status <span class="sort-arrow">↕</span></th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+    <div class="table-footer">
+      <span id="footerInfo">23 licenses · 1,483 total seats · 357 unused</span>
+      <span class="footer-total" id="footerWaste">Total monthly waste: $6,419 · Annual: $77,028</span>
+    </div>
+  </div>
+</div><!-- /main -->
+
+<!-- DETAIL MODAL -->
+<div class="overlay" id="detailOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <div><div class="modal-title" id="modalTitle">Software Detail</div><div class="modal-sub" id="modalSub"></div></div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div id="modalContent"></div>
+    <div class="modal-actions">
+      <button class="mbtn mbtn-sec" onclick="closeModal()">Close</button>
+      <button class="mbtn mbtn-primary" onclick="reclaimAction()">📧 Send Reclaim Notice</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toastCont"></div>
+
+<script>
+// ──────────────────────────────────────────────
+// DATA
+// ──────────────────────────────────────────────
+const licenses = [
+  // Microsoft 365
+  { id:1,  name:'Microsoft 365 E3',       vendor:'Microsoft', icon:'📊', cat:'m365',        catLabel:'Microsoft 365',  licensed:150, active:118, costPerSeat:36,    renewal:'Jan 2027', notes:'32 inactive users not logged in 90+ days.' },
+  { id:2,  name:'Microsoft 365 E5',       vendor:'Microsoft', icon:'📊', cat:'m365',        catLabel:'Microsoft 365',  licensed:50,  active:31,  costPerSeat:57,    renewal:'Jan 2027', notes:'19 E5 seats could downgrade to E3 saving $21/seat.' },
+  { id:3,  name:'Power BI Pro',           vendor:'Microsoft', icon:'📈', cat:'m365',        catLabel:'Microsoft 365',  licensed:40,  active:22,  costPerSeat:10,    renewal:'Jan 2027', notes:'18 seats never activated — purchased 6 months ago.' },
+  { id:4,  name:'Teams Phone',            vendor:'Microsoft', icon:'📞', cat:'m365',        catLabel:'Microsoft 365',  licensed:75,  active:48,  costPerSeat:8,     renewal:'Jan 2027', notes:'27 seats unassigned since last org restructure.' },
+  { id:5,  name:'Visio Plan 2',           vendor:'Microsoft', icon:'🗂️', cat:'m365',        catLabel:'Microsoft 365',  licensed:20,  active:7,   costPerSeat:15,    renewal:'Mar 2027', notes:'Only the architecture team actively uses Visio.' },
+  { id:6,  name:'Project Plan 3',         vendor:'Microsoft', icon:'📅', cat:'m365',        catLabel:'Microsoft 365',  licensed:15,  active:4,   costPerSeat:30,    renewal:'Mar 2027', notes:'Most PMs use Jira — Project licenses largely redundant.' },
+  // Security
+  { id:7,  name:'CrowdStrike Falcon Pro', vendor:'CrowdStrike',icon:'🛡️', cat:'security',   catLabel:'Security',       licensed:200, active:187, costPerSeat:8.99,  renewal:'Aug 2026', notes:'13 seats for offboarded employees. Clean up monthly.' },
+  { id:8,  name:'Microsoft Defender P2',  vendor:'Microsoft', icon:'🔐', cat:'security',   catLabel:'Security',       licensed:150, active:118, costPerSeat:5.20,  renewal:'Jan 2027', notes:'Overlaps with CrowdStrike on 118 endpoints — review strategy.' },
+  { id:9,  name:'Cisco AnyConnect VPN',   vendor:'Cisco',     icon:'🔒', cat:'security',   catLabel:'Security',       licensed:120, active:89,  costPerSeat:3.50,  renewal:'Jun 2026', notes:'31 VPN licenses for staff who never work remotely.' },
+  { id:10, name:'Microsoft Intune',       vendor:'Microsoft', icon:'📱', cat:'security',   catLabel:'Security',       licensed:150, active:142, costPerSeat:8,     renewal:'Jan 2027', notes:'8 seats for devices not yet enrolled in MDM.' },
+  { id:11, name:'Mimecast Email Security',vendor:'Mimecast',  icon:'📧', cat:'security',   catLabel:'Security',       licensed:175, active:161, costPerSeat:4.50,  renewal:'Nov 2026', notes:'14 seats for shared/service accounts — review necessity.' },
+  // Productivity
+  { id:12, name:'Adobe Acrobat DC',       vendor:'Adobe',     icon:'📄', cat:'productivity',catLabel:'Productivity',   licensed:60,  active:34,  costPerSeat:19.99, renewal:'Sep 2026', notes:'26 seats idle. Many users only need free Reader.' },
+  { id:13, name:'Adobe Creative Cloud',   vendor:'Adobe',     icon:'🎨', cat:'productivity',catLabel:'Productivity',   licensed:25,  active:18,  costPerSeat:79.99, renewal:'Sep 2026', notes:'7 idle seats at $80/mo each. Highest per-seat waste.' },
+  { id:14, name:'Zoom Business',          vendor:'Zoom',      icon:'📹', cat:'productivity',catLabel:'Productivity',   licensed:100, active:72,  costPerSeat:19.99, renewal:'Jul 2026', notes:'28 users have Teams and never use Zoom. Consolidate?' },
+  { id:15, name:'Slack Pro',              vendor:'Slack',     icon:'💬', cat:'productivity',catLabel:'Productivity',   licensed:80,  active:61,  costPerSeat:7.25,  renewal:'Oct 2026', notes:'19 users migrated to Teams but Slack seats not reclaimed.' },
+  { id:16, name:'LastPass Business',      vendor:'LastPass',  icon:'🔑', cat:'productivity',catLabel:'Productivity',   licensed:150, active:128, costPerSeat:4,     renewal:'Feb 2027', notes:'22 seats for contractors whose access has expired.' },
+  { id:17, name:'DocuSign Business',      vendor:'DocuSign',  icon:'✍️', cat:'productivity',catLabel:'Productivity',   licensed:30,  active:12,  costPerSeat:25,    renewal:'Apr 2027', notes:'60% unused. Only Finance/Legal actively sends envelopes.' },
+  { id:18, name:'Grammarly Business',     vendor:'Grammarly', icon:'✏️', cat:'productivity',catLabel:'Productivity',   licensed:45,  active:29,  costPerSeat:12.50, renewal:'Dec 2026', notes:'16 seats unactivated. Many users unaware of licence.' },
+  // Developer
+  { id:19, name:'GitHub Enterprise',      vendor:'GitHub',    icon:'🐙', cat:'developer',   catLabel:'Developer & IT', licensed:40,  active:35,  costPerSeat:21,    renewal:'May 2027', notes:'5 seats for staff who moved to non-dev roles.' },
+  { id:20, name:'Azure DevOps',           vendor:'Microsoft', icon:'⚙️', cat:'developer',   catLabel:'Developer & IT', licensed:40,  active:33,  costPerSeat:6,     renewal:'Jan 2027', notes:'7 seats for teams using Jira instead.' },
+  { id:21, name:'Jira Software',          vendor:'Atlassian', icon:'🎯', cat:'developer',   catLabel:'Developer & IT', licensed:50,  active:41,  costPerSeat:8.15,  renewal:'Aug 2026', notes:'9 seats for stakeholders who only need Jira viewer access.' },
+  { id:22, name:'JetBrains All Products', vendor:'JetBrains', icon:'🧩', cat:'developer',   catLabel:'Developer & IT', licensed:15,  active:9,   costPerSeat:24.90, renewal:'Nov 2026', notes:'6 seats unused after dev team downsizing in Q1.' },
+  { id:23, name:'Datadog',                vendor:'Datadog',   icon:'📡', cat:'developer',   catLabel:'Developer & IT', licensed:20,  active:14,  costPerSeat:15,    renewal:'Mar 2027', notes:'6 seats for teams not yet onboarded to observability stack.' },
+];
+
+// Computed fields
+licenses.forEach(l => {
+  l.unused      = l.licensed - l.active;
+  l.util        = Math.round((l.active / l.licensed) * 100);
+  l.monthlyWaste= l.unused * l.costPerSeat;
+  l.annualCost  = l.licensed * l.costPerSeat * 12;
+  l.annualWaste = l.monthlyWaste * 12;
+  l.status      = l.util >= 80 ? 'Healthy' : l.util >= 60 ? 'Review' : 'Critical';
+});
+
+// ──────────────────────────────────────────────
+// RENDER TABLE
+// ──────────────────────────────────────────────
+let currentData = [...licenses];
+let currentFilter = 'all';
+let currentSearch = '';
+
+function utilColor(u) {
+  if (u >= 80) return 'var(--green)';
+  if (u >= 60) return 'var(--amber)';
+  return 'var(--red)';
+}
+function wasteClass(w) {
+  if (w >= 400) return 'waste-high';
+  if (w >= 150) return 'waste-medium';
+  return 'waste-low';
+}
+function fmt(n) { return '$' + n.toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0}); }
+function fmtD(n) { return '$' + n.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+
+function renderTable(data) {
+  const tbody = document.getElementById('tableBody');
+  if (!data.length) { tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:2rem;color:var(--text-muted)">No licenses match the current filter.</td></tr>'; updateFooter(data); return; }
+  tbody.innerHTML = data.map(l => `
+    <tr>
+      <td>
+        <div class="td-software">
+          <div class="sw-icon" style="background:rgba(255,255,255,.06)">${l.icon}</div>
+          <div><div class="sw-name">${l.name}</div><div class="sw-vendor">${l.vendor}</div></div>
+        </div>
+      </td>
+      <td><span class="cat-badge cat-${l.cat === 'security' ? 'sec' : l.cat === 'productivity' ? 'prod' : l.cat === 'developer' ? 'dev' : 'm365'}">${l.catLabel}</span></td>
+      <td style="font-weight:600">${l.licensed}</td>
+      <td style="color:var(--green);font-weight:600">${l.active}</td>
+      <td style="color:${l.unused>0?'var(--red)':'var(--text-muted)'};font-weight:600">${l.unused}</td>
+      <td>
+        <div class="util-wrap">
+          <div class="util-bar-bg"><div class="util-bar-fill" style="width:${l.util}%;background:${utilColor(l.util)}"></div></div>
+          <div class="util-pct" style="color:${utilColor(l.util)}">${l.util}%</div>
+        </div>
+      </td>
+      <td>${fmt(l.annualCost)}</td>
+      <td class="waste-cell ${wasteClass(l.monthlyWaste)}">${l.monthlyWaste > 0 ? fmtD(l.monthlyWaste) + '/mo' : '—'}</td>
+      <td><span class="status-pill status-${l.status.toLowerCase()}">${l.status === 'Healthy' ? '✓' : l.status === 'Review' ? '⚠' : '✕'} ${l.status}</span></td>
+      <td>
+        ${l.status === 'Critical' ? `<button class="action-btn reclaim" onclick="openDetail(${l.id})">Reclaim Seats</button>` :
+          l.status === 'Review'   ? `<button class="action-btn review" onclick="openDetail(${l.id})">Review</button>` :
+          `<button class="action-btn" onclick="openDetail(${l.id})">View Detail</button>`}
+      </td>
+    </tr>`).join('');
+  updateFooter(data);
+  document.getElementById('tableCount').textContent = `Showing ${data.length} of ${licenses.length} licenses`;
+}
+
+function updateFooter(data) {
+  const totalSeats = data.reduce((s,l)=>s+l.licensed,0);
+  const unusedSeats = data.reduce((s,l)=>s+l.unused,0);
+  const monthlyWaste = data.reduce((s,l)=>s+l.monthlyWaste,0);
+  document.getElementById('footerInfo').textContent = `${data.length} licenses · ${totalSeats.toLocaleString()} total seats · ${unusedSeats.toLocaleString()} unused`;
+  document.getElementById('footerWaste').textContent = `Total monthly waste: ${fmtD(monthlyWaste)} · Annual: ${fmt(monthlyWaste*12)}`;
+}
+
+function applyFilters() {
+  let data = [...licenses];
+  if (currentFilter !== 'all') {
+    if (currentFilter === 'critical') data = data.filter(l => l.status === 'Critical');
+    else data = data.filter(l => l.cat === currentFilter);
+  }
+  if (currentSearch) {
+    const q = currentSearch.toLowerCase();
+    data = data.filter(l => l.name.toLowerCase().includes(q) || l.vendor.toLowerCase().includes(q) || l.catLabel.toLowerCase().includes(q));
+  }
+  currentData = data;
+  renderTable(data);
+}
+
+function filterTable(filter, el) {
+  currentFilter = filter;
+  document.querySelectorAll('.ftab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  applyFilters();
+}
+function searchTable(q) { currentSearch = q; applyFilters(); }
+function sortTable(val) {
+  if (!val) return;
+  let data = [...currentData];
+  if (val === 'waste-desc') data.sort((a,b) => b.monthlyWaste - a.monthlyWaste);
+  if (val === 'util-asc')   data.sort((a,b) => a.util - b.util);
+  if (val === 'spend-desc') data.sort((a,b) => b.annualCost - a.annualCost);
+  if (val === 'unused-desc')data.sort((a,b) => b.unused - a.unused);
+  currentData = data;
+  renderTable(data);
+}
+let sortDir = {};
+function sortCol(field) {
+  sortDir[field] = !sortDir[field];
+  const asc = sortDir[field];
+  currentData.sort((a,b) => {
+    let va = a[field === 'name' ? 'name' : field], vb = b[field === 'name' ? 'name' : field];
+    if (typeof va === 'string') return asc ? va.localeCompare(vb) : vb.localeCompare(va);
+    return asc ? va - vb : vb - va;
+  });
+  renderTable(currentData);
+}
+
+// ──────────────────────────────────────────────
+// SAVINGS RECOMMENDATIONS
+// ──────────────────────────────────────────────
+const savings = [
+  { icon:'📊', title:'Downgrade M365 E5 → E3', desc:'19 E5 users don\'t utilise advanced security/compliance features. Downgrading saves $21/seat/month.', annual:4788, urgency:'High' },
+  { icon:'📹', title:'Consolidate Zoom into Teams', desc:'28 users have both Zoom Business and M365 Teams Phone. Eliminating Zoom for these users removes duplication.', annual:6717, urgency:'High' },
+  { icon:'✍️', title:'Reduce DocuSign to 15 seats', desc:'Only Finance and Legal send envelopes. Dropping from 30 to 15 seats halves the contract cost.', annual:5400, urgency:'High' },
+  { icon:'📄', title:'Replace Adobe Acrobat with Reader', desc:'26 users only open PDFs — they don\'t need the $20/mo editing licence. Switch to free Adobe Reader.', annual:6237, urgency:'Medium' },
+  { icon:'🎨', title:'Audit Adobe Creative Cloud', desc:'7 idle CC seats at $80/mo each. Reassign or cancel — this is the highest per-seat cost in the portfolio.', annual:6719, urgency:'High' },
+  { icon:'🗂️', title:'Retire Visio Plan 2 (13 seats)', desc:'Only 7 users actively use Visio. Cancel 13 seats and redirect remaining users to one shared pool.', annual:2340, urgency:'Medium' },
+  { icon:'📅', title:'Cancel Project Plan 3 (11 seats)', desc:'PMs use Jira for project tracking. 11 of 15 Project licences are untouched — cancel at renewal.', annual:3960, urgency:'High' },
+  { icon:'💬', title:'Reclaim migrated Slack seats', desc:'19 users who moved to Teams still have active Slack Pro seats. Deactivate to recover $137/month.', annual:1653, urgency:'Medium' },
+];
+
+function renderSavings() {
+  const sorted = [...savings].sort((a,b) => b.annual - a.annual);
+  document.getElementById('savingsGrid').innerHTML = sorted.map(s => `
+    <div class="saving-item">
+      <div class="saving-icon">${s.icon}</div>
+      <div class="saving-info">
+        <div class="saving-title">${s.title} <span class="saving-urgency urg-${s.urgency.toLowerCase()}">${s.urgency}</span></div>
+        <div class="saving-desc">${s.desc}</div>
+        <span class="saving-amount">Save ${fmt(s.annual)}/yr</span>
+      </div>
+    </div>`).join('');
+}
+
+// ──────────────────────────────────────────────
+// CHARTS
+// ──────────────────────────────────────────────
+const COLORS = { m365:'#1e90ff', security:'#ef4444', productivity:'#8b5cf6', developer:'#22c55e' };
+
+function buildCharts() {
+  const cats = ['Microsoft 365','Security','Productivity','Developer & IT'];
+  const catKeys = ['m365','security','productivity','developer'];
+
+  // Utilization by category
+  const utilByCat = catKeys.map(k => {
+    const items = licenses.filter(l => l.cat === k);
+    const tot = items.reduce((s,l)=>s+l.licensed,0);
+    const act = items.reduce((s,l)=>s+l.active,0);
+    return Math.round((act/tot)*100);
+  });
+  new Chart(document.getElementById('chartUtil'), {
+    type: 'bar',
+    data: { labels: cats, datasets: [{
+      label: 'Utilization %', data: utilByCat,
+      backgroundColor: [COLORS.m365+'cc', COLORS.security+'cc', COLORS.productivity+'cc', COLORS.developer+'cc'],
+      borderColor:      [COLORS.m365, COLORS.security, COLORS.productivity, COLORS.developer],
+      borderWidth: 2, borderRadius: 6,
+    }]},
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ' ' + ctx.raw + '% utilised' } } },
+      scales: {
+        y: { beginAtZero: true, max: 100, ticks: { color: '#8a9bbf', callback: v => v + '%' }, grid: { color: 'rgba(42,63,106,.4)' }, border: { display: false } },
+        x: { ticks: { color: '#8a9bbf', font: { size: 11 } }, grid: { display: false }, border: { display: false } }
+      },
+      plugins: {
+        legend: { display: false },
+        annotation: { annotations: { line: { type: 'line', yMin: 85, yMax: 85, borderColor: 'rgba(245,158,11,.5)', borderWidth: 1, borderDash: [5,3] } } }
+      }
+    }
+  });
+
+  // Spend by category (doughnut)
+  const spendByCat = catKeys.map(k => licenses.filter(l=>l.cat===k).reduce((s,l)=>s+l.annualCost,0));
+  new Chart(document.getElementById('chartSpend'), {
+    type: 'doughnut',
+    data: {
+      labels: cats,
+      datasets: [{ data: spendByCat, backgroundColor: [COLORS.m365+'cc', COLORS.security+'cc', COLORS.productivity+'cc', COLORS.developer+'cc'], borderColor: '#0f1f3d', borderWidth: 3 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      cutout: '65%',
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#8a9bbf', padding: 12, font: { size: 11 }, boxWidth: 12 } },
+        tooltip: { callbacks: { label: ctx => ' ' + ctx.label + ': $' + Math.round(ctx.raw).toLocaleString() + '/yr' } }
+      }
+    }
+  });
+
+  // Top waste (horizontal bar)
+  const topWaste = [...licenses].sort((a,b)=>b.monthlyWaste-a.monthlyWaste).slice(0,6);
+  new Chart(document.getElementById('chartWaste'), {
+    type: 'bar',
+    data: {
+      labels: topWaste.map(l => l.name.length > 18 ? l.name.substring(0,18)+'…' : l.name),
+      datasets: [{ label: 'Monthly Waste $', data: topWaste.map(l=>+l.monthlyWaste.toFixed(0)),
+        backgroundColor: '#ef444499', borderColor: '#ef4444', borderWidth: 2, borderRadius: 6 }]
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ' $' + ctx.raw.toLocaleString() + '/mo waste' } } },
+      scales: {
+        x: { ticks: { color: '#8a9bbf', callback: v => '$'+v }, grid: { color: 'rgba(42,63,106,.4)' }, border: { display: false } },
+        y: { ticks: { color: '#8a9bbf', font: { size: 10 } }, grid: { display: false }, border: { display: false } }
+      }
+    }
+  });
+}
+
+// ──────────────────────────────────────────────
+// DETAIL MODAL
+// ──────────────────────────────────────────────
+let currentLicense = null;
+function openDetail(id) {
+  const l = licenses.find(x => x.id === id);
+  if (!l) return;
+  currentLicense = l;
+  document.getElementById('modalTitle').textContent = l.icon + ' ' + l.name;
+  document.getElementById('modalSub').textContent  = l.vendor + ' · ' + l.catLabel;
+  document.getElementById('modalContent').innerHTML = `
+    <div class="detail-row"><span class="detail-label">Licensed Seats</span><span class="detail-value">${l.licensed}</span></div>
+    <div class="detail-row"><span class="detail-label">Active Users (90-day)</span><span class="detail-value" style="color:var(--green)">${l.active}</span></div>
+    <div class="detail-row"><span class="detail-label">Unused Seats</span><span class="detail-value" style="color:var(--red)">${l.unused}</span></div>
+    <div class="detail-row"><span class="detail-label">Utilization Rate</span><span class="detail-value" style="color:${utilColor(l.util)}">${l.util}%</span></div>
+    <div class="detail-row"><span class="detail-label">Cost Per Seat / Month</span><span class="detail-value">${fmtD(l.costPerSeat)}</span></div>
+    <div class="detail-row"><span class="detail-label">Annual Contract Value</span><span class="detail-value">${fmt(l.annualCost)}</span></div>
+    <div class="detail-row"><span class="detail-label">Monthly Waste</span><span class="detail-value" style="color:var(--red)">${fmtD(l.monthlyWaste)}</span></div>
+    <div class="detail-row"><span class="detail-label">Annual Waste</span><span class="detail-value" style="color:var(--red)">${fmt(l.annualWaste)}</span></div>
+    <div class="detail-row"><span class="detail-label">Renewal Date</span><span class="detail-value">${l.renewal}</span></div>
+    <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value"><span class="status-pill status-${l.status.toLowerCase()}">${l.status}</span></span></div>
+    <div class="rec-box">💡 <strong>IT Recommendation:</strong> ${l.notes}</div>`;
+  document.getElementById('detailOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeModal() {
+  document.getElementById('detailOverlay').classList.remove('open');
+  document.body.style.overflow = '';
+  currentLicense = null;
+}
+document.getElementById('detailOverlay').addEventListener('click', e => { if (e.target === document.getElementById('detailOverlay')) closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+function reclaimAction() {
+  if (!currentLicense) return;
+  showToast('Reclaim notice sent', `${currentLicense.unused} unused ${currentLicense.name} seats flagged for reclaim.`);
+  closeModal();
+}
+
+// ──────────────────────────────────────────────
+// EXPORT CSV
+// ──────────────────────────────────────────────
+function exportCSV() {
+  const headers = ['Software','Vendor','Category','Licensed','Active','Unused','Utilization%','Annual Cost','Monthly Waste','Annual Waste','Status','Renewal'];
+  const rows = licenses.map(l => [
+    l.name, l.vendor, l.catLabel, l.licensed, l.active, l.unused,
+    l.util+'%', '$'+l.annualCost.toFixed(0), '$'+l.monthlyWaste.toFixed(2),
+    '$'+l.annualWaste.toFixed(0), l.status, l.renewal
+  ]);
+  const csv = [headers, ...rows].map(r => r.map(v => '"'+v+'"').join(',')).join('\n');
+  const a = document.createElement('a'); a.href = 'data:text/csv,' + encodeURIComponent(csv);
+  a.download = 'Summit_License_Utilization.csv'; a.click();
+  showToast('CSV exported', 'Summit_License_Utilization.csv downloaded.');
+}
+
+// ──────────────────────────────────────────────
+// TOAST
+// ──────────────────────────────────────────────
+function showToast(title, msg) {
+  const c = document.getElementById('toastCont');
+  const t = document.createElement('div'); t.className = 'toast';
+  t.innerHTML = `<div><div class="toast-title">✅ ${title}</div><div class="toast-body">${msg}</div></div>`;
+  c.appendChild(t);
+  setTimeout(() => { t.style.animation = 'fadeOut .3s ease forwards'; setTimeout(()=>t.remove(),300); }, 4000);
+}
+
+// ──────────────────────────────────────────────
+// INIT
+// ──────────────────────────────────────────────
+renderTable(licenses);
+renderSavings();
+buildCharts();
+</script>
+</body>
+</html>
